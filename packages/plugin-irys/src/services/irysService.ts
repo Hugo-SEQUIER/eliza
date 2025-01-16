@@ -11,6 +11,7 @@ import {
     ModelClass,
     IrysDataType,
     IrysTimestamp,
+    elizaLogger
 } from "@elizaos/core";
 import { Uploader } from "@irys/upload";
 import { BaseEth } from "@irys/upload-ethereum";
@@ -48,7 +49,7 @@ export class IrysService extends Service implements IIrysService {
     private endpointForData: string = "https://gateway.irys.xyz";
 
     async initialize(runtime: IAgentRuntime): Promise<void> {
-        console.log("Initializing IrysService");
+        elizaLogger.info("Initializing IrysService");
         this.runtime = runtime;
     }
 
@@ -74,10 +75,10 @@ export class IrysService extends Service implements IIrysService {
             }
             const data: TransactionGQL = await graphQLClient.request(QUERY, variables);
             const listOfTransactions : NodeGQL[] = data.transactions.edges.map((edge: any) => edge.node);
-            console.log("Transaction IDs retrieved")
+            elizaLogger.info("Transaction IDs retrieved")
             return { success: true, data: listOfTransactions };
         } catch (error) {
-            console.error("Error fetching transaction IDs", error);
+            elizaLogger.error("Error fetching transaction IDs", error);
             return { success: false, data: [], error: "Error fetching transaction IDs" };
         }
     }
@@ -94,13 +95,13 @@ export class IrysService extends Service implements IIrysService {
             this.irysUploader = irysUploader;
             return true;
         } catch (error) {
-            console.error("Error initializing Irys uploader:", error);
+            elizaLogger.error("Error initializing Irys uploader:", error);
             return false;
         }
     }
 
     private async fetchDataFromTransactionId(transactionId: string): Promise<DataIrysFetchedFromGQL> {
-        console.log(`Fetching data from transaction ID: ${transactionId}`);
+        elizaLogger.info(`Fetching data from transaction ID: ${transactionId}`);
         const response = await fetch(`${this.endpointForData}/${transactionId}`);
         if (!response.ok) return { success: false, data: null, error: "Error fetching data from transaction ID" };
         return {
@@ -147,7 +148,7 @@ export class IrysService extends Service implements IIrysService {
                 context: templateRequest,
                 modelClass: ModelClass.MEDIUM,
             });
-            console.log("RESPONSE FROM MODEL : ", responseFromModel)
+            elizaLogger.info("RESPONSE FROM MODEL : ", responseFromModel)
             if (!responseFromModel.success || ((responseFromModel.content?.toString().toLowerCase().includes('false')) && (!responseFromModel.content?.toString().toLowerCase().includes('true')))) {
                 dataArray.splice(i, 1);
                     i--;
@@ -166,18 +167,18 @@ export class IrysService extends Service implements IIrysService {
         ];
         if (dataArray.length == 0) {
             const response = await this.uploadDataOnIrys("No relevant data found from providers", responseTags, IrysMessageType.REQUEST_RESPONSE);
-            console.log("Response from Irys: ", response);
+            elizaLogger.info("Response from Irys: ", response);
             return { success: false, data: null, error: "No relevant data found from providers" };
         }
         const listProviders = new Set(dataArray.map((provider: any) => provider.address));
         if (listProviders.size < minimumProviders) {
             const response = await this.uploadDataOnIrys("Not enough providers", responseTags, IrysMessageType.REQUEST_RESPONSE);
-            console.log("Response from Irys: ", response);
+            elizaLogger.info("Response from Irys: ", response);
             return { success: false, data: null, error: "Not enough providers" };
         }
         const listData = dataArray.map((provider: any) => provider.data);
         const response = await this.uploadDataOnIrys(listData, responseTags, IrysMessageType.REQUEST_RESPONSE);
-        console.log("Response from Irys: ", response);
+        elizaLogger.info("Response from Irys: ", response);
         return {
             success: true,
             data: listData
@@ -335,6 +336,7 @@ export class IrysService extends Service implements IIrysService {
                 }
             });
             const data = await Promise.all(dataPromises);
+            elizaLogger.info("Data fetched from transaction IDs: ", data);
             return { success: true, data: data };
         } catch (error) {
             return { success: false, data: null, error: "Error fetching data from transaction IDs " + error };

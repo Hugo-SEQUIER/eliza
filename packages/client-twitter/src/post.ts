@@ -9,6 +9,9 @@ import {
     TemplateType,
     UUID,
     truncateToCompleteSentence,
+    IIrysService,
+    GraphQLTag,
+    IrysMessageType,
 } from "@elizaos/core";
 import { elizaLogger } from "@elizaos/core";
 import { ClientBase } from "./base.ts";
@@ -459,7 +462,7 @@ export class TwitterPostClient {
      */
     async generateNewTweet() {
         elizaLogger.log("Generating new tweet");
-
+        const irysService: IIrysService = this.runtime.getService(ServiceType.IRYS);
         try {
             const roomId = stringToUuid(
                 "twitter_generate_room-" + this.client.profile.username
@@ -472,7 +475,17 @@ export class TwitterPostClient {
             );
 
             const topics = this.runtime.character.topics.join(", ");
-
+            const tags = [
+                { name: "Message-Type", values: [IrysMessageType.DATA_STORAGE] },
+                { name: "Service-Category", values: ["Irys"] },
+                { name: "Protocol", values: ["Stats"] },
+            ] as GraphQLTag[];
+            const irysStats = await irysService.getDataFromAnAgent(null, tags, {from: Date.now() - 2 * 24 * 60 * 60 * 1000, to: Date.now()});
+            let dataContext = "";
+            if(irysStats.success){
+                dataContext = `\n\nTWEET ABOUT Irys Stats: ${JSON.stringify(irysStats.data, null, 2)}`;
+            }
+            elizaLogger.info("Data context: ", dataContext);
             const state = await this.runtime.composeState(
                 {
                     userId: this.runtime.agentId,
@@ -485,7 +498,12 @@ export class TwitterPostClient {
                 },
                 {
                     twitterUserName: this.client.profile.username,
-                }
+                    content: {
+                        text: dataContext || "",
+                        action: "TWEET",
+                    },
+                },
+
             );
 
             const context = composeContext({
@@ -499,9 +517,11 @@ export class TwitterPostClient {
 
             const newTweetContent = await generateText({
                 runtime: this.runtime,
-                context,
+                context: String(dataContext),
                 modelClass: ModelClass.SMALL,
             });
+
+            elizaLogger.debug("generate post response:\n" + newTweetContent);
 
             // First attempt to clean content
             let cleanedContent = "";
